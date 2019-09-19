@@ -28,7 +28,6 @@ Import-Package:\
     !org.apache.abdera.*,\
     !org.apache.aries.*,\
     !org.apache.commons.logging,\
-    !org.apache.cxf.*,\
     !org.apache.log4j.*,\
     !org.apache.neethi.*,\
     !org.apache.velocity.*,\

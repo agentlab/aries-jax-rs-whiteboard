@@ -28,7 +28,7 @@
         <relativePath />
     </parent>
 
-    <groupId>org.apache.aries.jax.rs</groupId>
+    <groupId>ru.agentlab.org.apache.aries.jax.rs</groupId>
     <artifactId>org.apache.aries.jax.rs</artifactId>
     <name>JAX-RS Integration Project</name>
     <version>1.0.5</version>
@@ -49,11 +49,55 @@
 
     <modules>
         <module>jax-rs.whiteboard</module>
-        <module>jax-rs.itests-fragment</module>
-        <module>jax-rs.itests</module>
+        <!--<module>jax-rs.itests-fragment</module>
+        <module>jax-rs.itests</module>-->
         <module>jax-rs.features</module>
         <module>org.apache.aries.jax.rs.cxf.repackage</module>
     </modules>
+	
+	<profiles>
+		<profile>
+			<id>agentlab</id>
+			<distributionManagement>
+				<repository>
+					<id>agentlab</id>
+					<url>https://agentlab.ru/nexus/repository/maven-releases</url>
+				</repository>
+				<snapshotRepository>
+					<id>agentlab</id>
+					<url>https://agentlab.ru/nexus/repository/maven-snapshots</url>
+				</snapshotRepository>
+			</distributionManagement>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-source-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>attach-sources</id>
+								<goals>
+									<goal>jar-no-fork</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-javadoc-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>attach-javadocs</id>
+								<goals>
+									<goal>jar</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
     <dependencyManagement>
         <dependencies>

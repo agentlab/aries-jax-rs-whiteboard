@@ -1,12 +1,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
     <parent>
-      <groupId>org.apache.aries.jax.rs</groupId>
+      <groupId>ru.agentlab.org.apache.aries.jax.rs</groupId>
       <artifactId>org.apache.aries.jax.rs</artifactId>
       <version>1.0.5</version>
     </parent>
   
-    <groupId>org.apache.aries.jax.rs.cxf.repackage</groupId>
+    <groupId>ru.agentlab.org.apache.aries.jax.rs.cxf.repackage</groupId>
     <artifactId>org.apache.aries.jax.rs.cxf.repackage</artifactId>
     <description>This project extracts and repackages CXF so that the whiteboard can be more easily built</description>
     <name>Aries JAX-RS Whiteboard CXF dependency repackaging</name>
@@ -16,7 +16,7 @@
             <groupId>org.apache.aries.component-dsl</groupId>
             <artifactId>org.apache.aries.component-dsl.component-dsl</artifactId>
         </dependency>
-        <dependency>
+        <!--<dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-core</artifactId>
         </dependency>
@@ -39,7 +39,7 @@
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-tools-common</artifactId>
-        </dependency>
+        </dependency>-->
     </dependencies>
 
     <build>
@@ -55,12 +55,12 @@
                             <goal>unpack-dependencies</goal>
                         </goals>
                         <configuration>
-                           <includes>**/*.class,**/Messages.properties,META-INF/services/*,org/apache/cxf/version/version.properties</includes>
+                           <includes>**/*.class,**/Messages.properties,META-INF/services/*</includes>
                            <outputDirectory>${project.build.outputDirectory}</outputDirectory>
                            <markersDirectory>${project.build.directory}/dependency-maven-plugin-markers-classes</markersDirectory>
                         </configuration>
                     </execution>
-                    <execution>
+                    <!--<execution>
                         <id>extract-bus-extensions</id>
                         <goals>
                             <goal>unpack-dependencies</goal>
@@ -72,13 +72,13 @@
                            <useSubDirectoryPerArtifact>true</useSubDirectoryPerArtifact>
                            <markersDirectory>${project.build.directory}/dependency-maven-plugin-markers-extensions</markersDirectory>
                         </configuration>
-                    </execution>
+                    </execution>-->
                 </executions>
                 <configuration>
                 	<excludeTransitive>true</excludeTransitive>
                 </configuration>
             </plugin>
-            <plugin>
+            <!--<plugin>
                 <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
                     <execution>
@@ -102,7 +102,7 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
+            </plugin>-->
         </plugins>
     </build>
 
