@@ -42,6 +42,9 @@ import javax.ws.rs.core.FeatureContext;
 import javax.ws.rs.ext.RuntimeDelegate;
 
 import org.apache.aries.component.dsl.CachingServiceReference;
+import org.apache.aries.component.dsl.OSGi;
+import org.apache.aries.jax.rs.whiteboard.internal.AriesJaxrsServiceRuntime;
+import org.apache.aries.jax.rs.whiteboard.internal.ServiceReferenceRegistry;
 import org.apache.aries.jax.rs.whiteboard.internal.utils.ServiceTuple;
 import org.apache.cxf.Bus;
 import org.apache.cxf.common.util.ClassHelper;
@@ -51,7 +54,6 @@ import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.apache.cxf.jaxrs.JAXRSServiceFactoryBean;
 import org.apache.cxf.jaxrs.ext.ResourceContextProvider;
 import org.apache.cxf.jaxrs.impl.ConfigurableImpl;
-import org.apache.cxf.jaxrs.impl.ResourceContextImpl;
 import org.apache.cxf.jaxrs.lifecycle.ResourceProvider;
 import org.apache.cxf.jaxrs.model.ApplicationInfo;
 import org.apache.cxf.jaxrs.model.ClassResourceInfo;
@@ -63,28 +65,30 @@ import org.apache.cxf.jaxrs.utils.AnnotationUtils;
 
 public class CxfJaxrsServiceRegistrator {
 
+    public Map<String, ?> getProperties() {
+        return _properties;
+    }
+
     public CxfJaxrsServiceRegistrator(
         Bus bus, ServiceTuple<Application> applicationTuple,
-        Map<String, ?> properties) {
+        Map<String, ?> properties,
+        AriesJaxrsServiceRuntime ariesJaxrsServiceRuntime) {
 
         _bus = bus;
         _applicationTuple = applicationTuple;
         _properties = Collections.unmodifiableMap(new HashMap<>(properties));
+        _ariesJaxrsServiceRuntime = ariesJaxrsServiceRuntime;
 
         Comparator<ServiceTuple<?>> comparing = Comparator.comparing(
             ServiceTuple::getCachingServiceReference);
 
         _providers = new TreeSet<>(comparing);
-
-        rewire();
+        _erroredProviders = new ArrayList<>();
+        _erroredServices = new ArrayList<>();
+        _serviceReferenceRegistry = new ServiceReferenceRegistry();
     }
 
     public synchronized void add(ResourceProvider resourceProvider) {
-
-        if (_closed) {
-            return;
-        }
-
         _services.add(resourceProvider);
 
         try {
@@ -98,10 +102,6 @@ public class CxfJaxrsServiceRegistrator {
     }
 
     public synchronized void addProvider(ServiceTuple<?> tuple) {
-        if (_closed) {
-            return;
-        }
-
         _providers.add(tuple);
 
         try {
@@ -115,12 +115,68 @@ public class CxfJaxrsServiceRegistrator {
 
     }
 
+    public void enable() {
+        _enabled = true;
+
+        try {
+            rewire();
+        }
+        catch (Exception e) {
+            ArrayList<ServiceTuple<?>> providers = new ArrayList<>();
+            ArrayList<ResourceProvider> services = new ArrayList<>();
+
+            for (ServiceTuple<?> provider : _providers) {
+                providers.add(provider);
+
+                try {
+                    doRewire(providers, services);
+                }
+                catch (Exception ex) {
+                    providers.remove(provider);
+                    _erroredProviders.add(provider);
+                }
+            }
+            for (ResourceProvider service : _services) {
+                services.add(service);
+
+                try {
+                    doRewire(providers, services);
+                }
+                catch (Exception ex) {
+                    services.remove(service);
+                    _erroredServices.add(service);
+                }
+            }
+
+            _enabled = false;
+
+            for (ServiceTuple<?> erroredProvider : _erroredProviders) {
+                CachingServiceReference<?> cachingServiceReference =
+                    erroredProvider.getCachingServiceReference();
+                _providers.remove(erroredProvider);
+                _ariesJaxrsServiceRuntime.addErroredExtension(
+                    cachingServiceReference);
+                _serviceReferenceRegistry.unregister(cachingServiceReference);
+            }
+            for (ResourceProvider erroredService : _erroredServices) {
+                _services.remove(erroredService);
+                _ariesJaxrsServiceRuntime.addErroredEndpoint(
+                    ((ServiceReferenceResourceProvider)erroredService).
+                        getImmutableServiceReference());
+            }
+
+            _enabled = true;
+
+            rewire();
+        }
+    }
+
     public void close() {
-        if (_closed) {
+        if (!_enabled) {
             return;
         }
 
-        _closed = true;
+        _enabled = false;
 
         if (_server != null) {
             _server.destroy();
@@ -180,10 +236,17 @@ public class CxfJaxrsServiceRegistrator {
         return classes;
     }
 
-    public synchronized void remove(ResourceProvider resourceProvider) {
+    public void registerExtension(
+        CachingServiceReference<?> serviceReference) {
 
-        if (_closed) {
-            return;
+        _serviceReferenceRegistry.register(serviceReference);
+    }
+
+    public synchronized void remove(ResourceProvider resourceProvider) {
+        if (_erroredServices.remove(resourceProvider)) {
+            _ariesJaxrsServiceRuntime.removeErroredEndpoint(
+                ((ServiceReferenceResourceProvider)resourceProvider).
+                    getImmutableServiceReference());
         }
 
         _services.remove(resourceProvider);
@@ -192,8 +255,9 @@ public class CxfJaxrsServiceRegistrator {
     }
 
     public synchronized void removeProvider(ServiceTuple<?> tuple) {
-        if (_closed) {
-            return;
+        if (_erroredProviders.remove(tuple)) {
+            _ariesJaxrsServiceRuntime.removeErroredExtension(
+                tuple.getCachingServiceReference());
         }
 
         _providers.remove(tuple);
@@ -201,8 +265,34 @@ public class CxfJaxrsServiceRegistrator {
         rewire();
     }
 
+    public synchronized void rewire() {
+        doRewire(_providers, _services);
+    }
+
+    public void unregisterExtension(
+        CachingServiceReference<?> serviceReference) {
+
+        _serviceReferenceRegistry.unregister(serviceReference);
+    }
+
+    public OSGi<CachingServiceReference<?>> waitForExtension(
+        String extensionDependency) {
+
+        return _serviceReferenceRegistry.waitFor(extensionDependency);
+    }
+
+    private ArrayList<ServiceTuple<?>> _erroredProviders;
+    private ArrayList<ResourceProvider> _erroredServices;
+
     @SuppressWarnings("serial")
-    protected synchronized void rewire() {
+    private synchronized void doRewire(
+        Collection<ServiceTuple<?>> providers,
+        Collection<ResourceProvider> services) {
+
+        if (!_enabled) {
+            return;
+        }
+
         if (!_applicationTuple.isAvailable()) {
             _applicationTuple.dispose();
 
@@ -210,12 +300,11 @@ public class CxfJaxrsServiceRegistrator {
         }
 
         if (_server != null) {
-
             _server.destroy();
 
             _applicationTuple.refresh();
 
-            for (ServiceTuple<?> provider : _providers) {
+            for (ServiceTuple<?> provider : providers) {
                 provider.refresh();
             }
         }
@@ -255,7 +344,7 @@ public class CxfJaxrsServiceRegistrator {
 
         List<org.apache.cxf.feature.Feature> features = new ArrayList<>();
 
-        for (ServiceTuple<?> provider : _providers) {
+        for (ServiceTuple<?> provider : providers) {
             CachingServiceReference<?> cachingServiceReference =
                 provider.getCachingServiceReference();
 
@@ -313,10 +402,12 @@ public class CxfJaxrsServiceRegistrator {
             _jaxRsServerFactoryBean.setFeatures(features);
         }
 
-        for (ResourceProvider resourceProvider: _services) {
-            if (resourceProvider instanceof PrototypeServiceReferenceResourceProvider) {
+        for (ResourceProvider resourceProvider: services) {
+            if (resourceProvider instanceof
+                PrototypeServiceReferenceResourceProvider) {
+
                 PrototypeServiceReferenceResourceProvider provider =
-                    (PrototypeServiceReferenceResourceProvider) resourceProvider;
+                    (PrototypeServiceReferenceResourceProvider)resourceProvider;
                 if (!provider.isAvailable()) {
                     continue;
                 }
@@ -391,9 +482,11 @@ public class CxfJaxrsServiceRegistrator {
     private final Bus _bus;
     private final Collection<ServiceTuple<?>> _providers;
     private final Collection<ResourceProvider> _services = new ArrayList<>();
-    private volatile boolean _closed = false;
+    private volatile boolean _enabled = false;
     private JAXRSServerFactoryBean _jaxRsServerFactoryBean;
     private Map<String, Object> _properties;
+    private AriesJaxrsServiceRuntime _ariesJaxrsServiceRuntime;
+    private ServiceReferenceRegistry _serviceReferenceRegistry;
     private Server _server;
 
     private static Set<String> getFilterNameBindings(

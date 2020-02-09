@@ -484,7 +484,9 @@ public class JaxrsTest extends TestHelper {
                 put(JAX_RS_APPLICATION_BASE, "/test-application-rebased-again");
             }});
 
-        webTarget = createDefaultTarget().path("/test-application-rebased-again");
+        webTarget =
+            createDefaultTarget().
+                path("/test-application-rebased-again");
 
         response = webTarget.request().get();
 
@@ -683,6 +685,54 @@ public class JaxrsTest extends TestHelper {
     }
 
     @Test
+    public void testApplicationWithDedicatedErroredExtension()
+        throws InterruptedException {
+
+        assertEquals(0, getRuntimeDTO().applicationDTOs.length);
+        assertEquals(0, getRuntimeDTO().failedApplicationDTOs.length);
+
+        registerExtension(
+            Feature.class,
+            context -> {
+                throw new RuntimeException();
+            },
+            "ErrorFeature",
+            JAX_RS_APPLICATION_SELECT,
+            "(" + JAX_RS_APPLICATION_BASE + "=/test-application)");
+
+        registerApplication(
+            new TestApplication(),
+            JAX_RS_EXTENSION_SELECT,
+            String.format("(%s=%s)", JAX_RS_NAME, "ErrorFeature"));
+
+        assertEquals(1, getRuntimeDTO().failedExtensionDTOs.length);
+        assertEquals(1, getRuntimeDTO().failedApplicationDTOs.length);
+        assertEquals(0, getRuntimeDTO().applicationDTOs.length);
+
+        WebTarget webTarget = createDefaultTarget().path("/test-application");
+
+        Response response = webTarget.request().get();
+
+        assertEquals(404, response.getStatus());
+
+        registerExtension(
+            "ErrorFeature",
+            JAX_RS_APPLICATION_SELECT,
+            "(" + JAX_RS_APPLICATION_BASE + "=/test-application)",
+            "service.ranking", 10);
+
+        assertEquals(1, getRuntimeDTO().failedExtensionDTOs.length);
+        assertEquals(0, getRuntimeDTO().failedApplicationDTOs.length);
+        assertEquals(1, getRuntimeDTO().applicationDTOs.length);
+
+        webTarget = createDefaultTarget().path("/test-application");
+
+        response = webTarget.request().get();
+
+        assertEquals(200, response.getStatus());
+    }
+
+    @Test
     public void testApplicationWithDependentExtensions() {
         assertEquals(0, getRuntimeDTO().applicationDTOs.length);
         assertEquals(0, getRuntimeDTO().failedApplicationDTOs.length);
@@ -726,6 +776,34 @@ public class JaxrsTest extends TestHelper {
         applicationServiceRegistration.unregister();
 
         assertEquals(0, getRuntimeDTO().failedExtensionDTOs.length);
+    }
+
+    @Test
+    public void testApplicationWithDependentExtensionsShadowsApplication() {
+        assertEquals(0, getRuntimeDTO().applicationDTOs.length);
+        assertEquals(0, getRuntimeDTO().failedApplicationDTOs.length);
+
+        //Depends on extension
+        registerApplication(
+            new TestApplication(), "extension.test", "true",
+            JAX_RS_EXTENSION_SELECT, "(osgi.jaxrs.name=Filter1)",
+            "service.ranking", 10);
+
+        assertEquals(0, getRuntimeDTO().applicationDTOs.length);
+        assertEquals(1, getRuntimeDTO().failedApplicationDTOs.length);
+
+        //Shadowed by the other application, even though it is not ready
+        registerApplication(new TestApplication());
+
+        assertEquals(0, getRuntimeDTO().applicationDTOs.length);
+        assertEquals(2, getRuntimeDTO().failedApplicationDTOs.length);
+
+        registerExtension(
+            "Filter1", JAX_RS_APPLICATION_SELECT, String.format("(%s=%s)",
+            "extension.test", "true"));
+
+        assertEquals(1, getRuntimeDTO().applicationDTOs.length);
+        assertEquals(1, getRuntimeDTO().failedApplicationDTOs.length);
     }
 
     @Test
@@ -803,10 +881,12 @@ public class JaxrsTest extends TestHelper {
             assertEquals(1, runtimeDTO.applicationDTOs.length);
             assertEquals(0, runtimeDTO.failedApplicationDTOs.length);
 
-            WebTarget webTarget = createDefaultTarget().path("/test-application");
+            WebTarget webTarget = createDefaultTarget().
+                path("/test-application");
 
             assertEquals(200, webTarget.request().get().getStatus());
-            assertEquals("Hello application", webTarget.request().get(String.class));
+            assertEquals(
+                "Hello application", webTarget.request().get(String.class));
         } finally {
             applicationRegistration.unregister();
         }
@@ -869,11 +949,11 @@ public class JaxrsTest extends TestHelper {
 
         ServiceRegistration<?> filterRegistration = registerExtension("Filter");
 
-        assertEquals(1, getRuntimeDTO().applicationDTOs.length);
+        assertEquals(0, getRuntimeDTO().applicationDTOs.length);
 
         response = webTarget.request().get();
 
-        assertEquals("Hello application", response.readEntity(String.class));
+        assertEquals(404, response.getStatus());
 
         filterRegistration.unregister();
 
@@ -919,7 +999,11 @@ public class JaxrsTest extends TestHelper {
         assertTrue(Boolean.parseBoolean(response.getHeaderString("Filtered")));
         assertEquals("Hello application", response.readEntity(String.class));
 
-        response = createDefaultTarget().path("/test-application-2").request().get();
+        response =
+            createDefaultTarget().
+                path("/test-application-2").
+                request().
+                get();
 
         assertNull(response.getHeaderString("Filtered"));
         assertEquals("Hello application", response.readEntity(String.class));
@@ -1145,7 +1229,10 @@ public class JaxrsTest extends TestHelper {
         throws ExecutionException, InterruptedException {
 
         WebTarget webTarget =
-            createDefaultTarget().path("whiteboard").path("async").path("suspended").
+            createDefaultTarget().
+                path("whiteboard").
+                path("async").
+                path("suspended").
                 path("HelloAsync");
 
         AtomicBoolean pre = new AtomicBoolean();
@@ -1189,7 +1276,10 @@ public class JaxrsTest extends TestHelper {
             throws ExecutionException, InterruptedException {
 
         WebTarget webTarget =
-                createDefaultTarget().path("whiteboard").path("async").path("completionstage").
+            createDefaultTarget().
+                path("whiteboard").
+                path("async").
+                path("completionstage").
                 path("HelloAsync");
 
         AtomicBoolean pre = new AtomicBoolean();
@@ -1233,8 +1323,11 @@ public class JaxrsTest extends TestHelper {
             throws ExecutionException, InterruptedException {
 
         WebTarget webTarget =
-                createDefaultTarget().path("whiteboard").path("async").path("promise").
-                path("HelloAsync");
+                createDefaultTarget().
+                    path("whiteboard").
+                    path("async").
+                    path("promise").
+                    path("HelloAsync");
 
         AtomicBoolean pre = new AtomicBoolean();
         AtomicBoolean post = new AtomicBoolean();
@@ -1278,7 +1371,10 @@ public class JaxrsTest extends TestHelper {
         InvocationTargetException {
 
         WebTarget webTarget =
-            createDefaultTarget().path("whiteboard").path("async").path("promise").
+            createDefaultTarget().
+                path("whiteboard").
+                path("async").
+                path("promise").
                 path("HelloAsync");
 
         AtomicBoolean pre = new AtomicBoolean();
@@ -1354,39 +1450,33 @@ public class JaxrsTest extends TestHelper {
 
             properties.put("default.web", "false");
 
-            CountDownLatch countDownLatch = new CountDownLatch(3);
+            CountDownLatch countDownLatch = new CountDownLatch(6);
 
-            ServiceTracker<Object, Object> tracker =
+            ServiceTracker<?, ?> tracker =
                 new ServiceTracker<>(
                     bundleContext,
-                    bundleContext.createFilter(
-                        "(&(osgi.jaxrs.name=.default)" +
-                            "(objectClass=org.apache.aries.jax.rs.whiteboard." +
-                                "internal.cxf.CxfJaxrsServiceRegistrator))"),
-                    new ServiceTrackerCustomizer<Object, Object>() {
-
+                    JaxrsServiceRuntime.class,
+                    new ServiceTrackerCustomizer<JaxrsServiceRuntime, Object>() {
                         @Override
                         public Object addingService(
-                            ServiceReference<Object> serviceReference) {
+                            ServiceReference<JaxrsServiceRuntime> reference) {
 
-                            countDownLatch.countDown();
-
-                            return serviceReference;
+                            return reference;
                         }
 
                         @Override
                         public void modifiedService(
-                            ServiceReference<Object> serviceReference,
-                            Object o) {
+                            ServiceReference<JaxrsServiceRuntime> reference,
+                            Object service) {
 
+                            countDownLatch.countDown();
                         }
 
                         @Override
                         public void removedService(
-                            ServiceReference<Object> serviceReference,
-                            Object o) {
+                            ServiceReference<JaxrsServiceRuntime> reference,
+                            Object service) {
 
-                            countDownLatch.countDown();
                         }
                     });
 
@@ -1396,44 +1486,40 @@ public class JaxrsTest extends TestHelper {
 
             countDownLatch.await(1, TimeUnit.MINUTES);
 
+            tracker.close();
+
             assertTrue(
                 defaultTarget.request().get(String.class).
                     contains("No services have been found"));
         }
         finally {
-            CountDownLatch countDownLatch = new CountDownLatch(3);
+            CountDownLatch countDownLatch = new CountDownLatch(6);
 
-            ServiceTracker<Object, Object> tracker =
+            ServiceTracker<?, ?> tracker =
                 new ServiceTracker<>(
                     bundleContext,
-                    bundleContext.createFilter(
-                        "(&(osgi.jaxrs.name=.default)" +
-                            "(objectClass=org.apache.aries.jax.rs.whiteboard." +
-                                "internal.cxf.CxfJaxrsServiceRegistrator))"),
-                    new ServiceTrackerCustomizer<Object, Object>() {
-
+                    JaxrsServiceRuntime.class,
+                    new ServiceTrackerCustomizer<JaxrsServiceRuntime, Object>() {
                         @Override
                         public Object addingService(
-                            ServiceReference<Object> serviceReference) {
+                            ServiceReference<JaxrsServiceRuntime> reference) {
 
-                            countDownLatch.countDown();
-
-                            return serviceReference;
+                            return reference;
                         }
 
                         @Override
                         public void modifiedService(
-                            ServiceReference<Object> serviceReference,
-                            Object o) {
+                            ServiceReference<JaxrsServiceRuntime> reference,
+                            Object service) {
 
+                            countDownLatch.countDown();
                         }
 
                         @Override
                         public void removedService(
-                            ServiceReference<Object> serviceReference,
-                            Object o) {
+                            ServiceReference<JaxrsServiceRuntime> reference,
+                            Object service) {
 
-                            countDownLatch.countDown();
                         }
                     });
 
@@ -1442,6 +1528,8 @@ public class JaxrsTest extends TestHelper {
             configuration.delete();
 
             countDownLatch.await(1, TimeUnit.MINUTES);
+
+            tracker.close();
         }
 
         assertFalse(
@@ -1476,39 +1564,38 @@ public class JaxrsTest extends TestHelper {
 
             properties.put("default.application.base", "defaultpath");
 
-            CountDownLatch countDownLatch = new CountDownLatch(3);
+            CountDownLatch countDownLatch = new CountDownLatch(6);
 
-            ServiceTracker<Object, Object> tracker =
+            ServiceTracker<?, ?> tracker =
                 new ServiceTracker<>(
                     bundleContext,
-                    bundleContext.createFilter(
-                        "(&(osgi.jaxrs.name=.default)" +
-                            "(objectClass=org.apache.aries.jax.rs.whiteboard." +
-                            "internal.cxf.CxfJaxrsServiceRegistrator))"),
-                    new ServiceTrackerCustomizer<Object, Object>() {
+                    JaxrsServiceRuntime.class,
+                    new ServiceTrackerCustomizer<
+                        JaxrsServiceRuntime, Object>() {
 
                         @Override
                         public Object addingService(
-                            ServiceReference<Object> serviceReference) {
-
-                            countDownLatch.countDown();
+                            ServiceReference<JaxrsServiceRuntime>
+                                serviceReference) {
 
                             return serviceReference;
                         }
 
                         @Override
                         public void modifiedService(
-                            ServiceReference<Object> serviceReference,
+                            ServiceReference<JaxrsServiceRuntime>
+                                serviceReference,
                             Object o) {
 
+                            countDownLatch.countDown();
                         }
 
                         @Override
                         public void removedService(
-                            ServiceReference<Object> serviceReference,
+                            ServiceReference<JaxrsServiceRuntime>
+                                serviceReference,
                             Object o) {
 
-                            countDownLatch.countDown();
                         }
                     });
 
@@ -1529,37 +1616,36 @@ public class JaxrsTest extends TestHelper {
         finally {
             CountDownLatch countDownLatch = new CountDownLatch(3);
 
-            ServiceTracker<Object, Object> tracker =
+            ServiceTracker<?, ?> tracker =
                 new ServiceTracker<>(
                     bundleContext,
-                    bundleContext.createFilter(
-                        "(&(osgi.jaxrs.name=.default)" +
-                            "(objectClass=org.apache.aries.jax.rs.whiteboard." +
-                            "internal.cxf.CxfJaxrsServiceRegistrator))"),
-                    new ServiceTrackerCustomizer<Object, Object>() {
+                    JaxrsServiceRuntime.class,
+                    new ServiceTrackerCustomizer<
+                        JaxrsServiceRuntime, Object>() {
 
                         @Override
                         public Object addingService(
-                            ServiceReference<Object> serviceReference) {
-
-                            countDownLatch.countDown();
+                            ServiceReference<JaxrsServiceRuntime>
+                                serviceReference) {
 
                             return serviceReference;
                         }
 
                         @Override
                         public void modifiedService(
-                            ServiceReference<Object> serviceReference,
+                            ServiceReference<JaxrsServiceRuntime>
+                                serviceReference,
                             Object o) {
 
+                            countDownLatch.countDown();
                         }
 
                         @Override
                         public void removedService(
-                            ServiceReference<Object> serviceReference,
+                            ServiceReference<JaxrsServiceRuntime>
+                                serviceReference,
                             Object o) {
 
-                            countDownLatch.countDown();
                         }
                     });
 
@@ -1679,6 +1765,31 @@ public class JaxrsTest extends TestHelper {
 
         RuntimeDTO runtimeDTO = _runtime.getRuntimeDTO();
 
+        assertEquals(1, runtimeDTO.failedExtensionDTOs.length);
+        assertEquals(
+            serviceRegistration.getReference().getProperty("service.id"),
+            runtimeDTO.failedExtensionDTOs[0].serviceId);
+        assertEquals(
+            DTOConstants.FAILURE_REASON_UNKNOWN,
+            runtimeDTO.failedExtensionDTOs[0].failureReason);
+    }
+
+    @Test
+    public void testErroredExtensionInverseRegistrationOrder() {
+        ServiceRegistration<Feature> serviceRegistration = registerExtension(
+            Feature.class,
+            context -> {
+                    throw new RuntimeException();
+                },
+            "ErrorFeature",
+            JAX_RS_APPLICATION_SELECT,
+            "(" + JAX_RS_APPLICATION_BASE + "=/test-application)");
+
+        registerApplication(new TestApplication());
+
+        RuntimeDTO runtimeDTO = _runtime.getRuntimeDTO();
+
+        assertEquals(0, runtimeDTO.failedApplicationDTOs.length);
         assertEquals(1, runtimeDTO.failedExtensionDTOs.length);
         assertEquals(
             serviceRegistration.getReference().getProperty("service.id"),
@@ -2073,8 +2184,11 @@ public class JaxrsTest extends TestHelper {
                             @SuppressWarnings("unchecked")
                             Map<String, Object> properties =
                                 (Map<String, Object>)
-                                    featureContext.getConfiguration().getProperty(
-                                        "osgi.jaxrs.application.serviceProperties");
+                                    featureContext.
+                                        getConfiguration().
+                                        getProperty(
+                                        "osgi.jaxrs.application." +
+                                            "serviceProperties");
                             propertyvalue.set(properties.get("property"));
 
                             return false;
@@ -2262,6 +2376,78 @@ public class JaxrsTest extends TestHelper {
             (long)serviceRegistration.getReference().getProperty(
                 "service.id"),
             runtimeDTO.failedResourceDTOs[0].serviceId);
+    }
+
+    @Test
+    public void testStandaloneEndpointWithExtensionsDependenciesOnlyOneService()
+            throws InterruptedException {
+
+        WebTarget webTarget = createDefaultTarget().path("test");
+
+        JaxrsServiceRuntime runtime = getJaxrsServiceRuntime();
+
+        ServiceRegistration<?> serviceRegistration;
+        ServiceRegistration<?> extensionRegistration1;
+
+        serviceRegistration = registerAddon(
+                new TestAddon(),
+                JAX_RS_EXTENSION_SELECT, new String[]{
+                        "(property one=one)",
+                        "(property two=two)",
+                });
+
+        RuntimeDTO runtimeDTO = runtime.getRuntimeDTO();
+
+        assertEquals(1, runtimeDTO.failedResourceDTOs.length);
+        assertEquals(
+                (long)serviceRegistration.getReference().getProperty(
+                        "service.id"),
+                runtimeDTO.failedResourceDTOs[0].serviceId);
+
+        assertEquals(404, webTarget.request().get().getStatus());
+
+        extensionRegistration1 = registerExtension(
+                "aExtension", "property one", "one", "property two", "two");
+
+        runtimeDTO = runtime.getRuntimeDTO();
+
+        assertEquals(0, runtimeDTO.failedResourceDTOs.length);
+
+        Response response = webTarget.request().get();
+
+        assertEquals(
+                "This should say hello", "Hello test",
+                response.readEntity(String.class));
+
+        extensionRegistration1.unregister();
+
+        runtimeDTO = runtime.getRuntimeDTO();
+        assertEquals(1, runtimeDTO.failedResourceDTOs.length);
+        assertEquals(
+                (long)serviceRegistration.getReference().getProperty(
+                        "service.id"),
+                runtimeDTO.failedResourceDTOs[0].serviceId);
+
+        assertEquals(404, webTarget.request().get().getStatus());
+
+        extensionRegistration1 = registerExtension(
+                "aExtension", "property one", "one", "property two", "two");
+
+        runtimeDTO = runtime.getRuntimeDTO();
+        assertEquals(0, runtimeDTO.failedResourceDTOs.length);
+
+        assertEquals(
+                "This should say hello", "Hello test",
+                response.readEntity(String.class));
+
+        extensionRegistration1.unregister();
+
+        runtimeDTO = runtime.getRuntimeDTO();
+        assertEquals(1, runtimeDTO.failedResourceDTOs.length);
+        assertEquals(
+                (long)serviceRegistration.getReference().getProperty(
+                        "service.id"),
+                runtimeDTO.failedResourceDTOs[0].serviceId);
     }
 
     @Test
@@ -2523,8 +2709,15 @@ public class JaxrsTest extends TestHelper {
     @Test
     public void testVoidResource() {
         registerAddon(new TestVoidResource());
-        Response response = createDefaultTarget().path("returntype/void").request(TEXT_PLAIN_TYPE).head();
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+
+        Response response =
+            createDefaultTarget().
+                path("returntype/void").
+                request(TEXT_PLAIN_TYPE).
+                head();
+
+        assertEquals(
+            Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
     }
 
     @Test

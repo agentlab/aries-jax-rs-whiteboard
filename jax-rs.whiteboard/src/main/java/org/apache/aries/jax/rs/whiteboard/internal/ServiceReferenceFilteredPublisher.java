@@ -17,44 +17,48 @@
 
 package org.apache.aries.jax.rs.whiteboard.internal;
 
+import org.apache.aries.component.dsl.CachingServiceReference;
 import org.apache.aries.component.dsl.OSGiResult;
 import org.apache.aries.component.dsl.Publisher;
 import org.osgi.framework.Filter;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class FilteredPublisher<T> implements AutoCloseable {
+public class ServiceReferenceFilteredPublisher implements AutoCloseable {
 
-    public FilteredPublisher(Publisher<? super T> publisher, Filter filter) {
+    public ServiceReferenceFilteredPublisher(
+        Publisher<? super CachingServiceReference<?>> publisher,
+        Filter filter) {
+
         _publisher = publisher;
         _filter = filter;
     }
 
     public void close() {
         if (_closed.compareAndSet(false, true)) {
-            _results.forEach((__, result) -> result.forEach(OSGiResult::close));
+            _results.forEach((__, resultList) -> resultList.forEach(OSGiResult::close));
 
             _results.clear();
         }
     }
 
-    public void publishIfMatched(T t, Map<String, ?> properties) {
+    public void publishIfMatched(CachingServiceReference<?> serviceReference) {
         if (_closed.get()) {
             return;
         }
 
-        if (_filter.matches(properties)) {
-            OSGiResult result = _publisher.publish(t);
+        if (_filter.match(serviceReference.getServiceReference())) {
+            OSGiResult result = _publisher.publish(serviceReference);
 
             _results.compute(
-                    t,
+                    serviceReference,
                     (__, results) -> {
                         if (results == null) {
-                            results = new ArrayList<>();
+                             results = new ArrayList<>();
                         }
 
                         results.add(result);
@@ -68,21 +72,24 @@ public class FilteredPublisher<T> implements AutoCloseable {
         }
     }
 
-    public void retract(T t) {
+    public void retractIfMatched(CachingServiceReference<?> serviceReference) {
         if (_closed.get()) {
             return;
         }
 
-        List<OSGiResult> resultList = _results.remove(t);
+        if (_filter.match(serviceReference.getServiceReference())) {
+            List<OSGiResult> resultList = _results.remove(serviceReference);
 
-        if (resultList != null) {
-            resultList.forEach(OSGiResult::close);
+            if (resultList != null) {
+                resultList.forEach(OSGiResult::close);
+            }
         }
     }
 
-    private Publisher<? super T> _publisher;
+    private Publisher<? super CachingServiceReference<?>> _publisher;
     private Filter _filter;
     private AtomicBoolean _closed = new AtomicBoolean(false);
-    private IdentityHashMap<T, List<OSGiResult>> _results = new IdentityHashMap<>();
+    private Map<CachingServiceReference<?>, List<OSGiResult>> _results =
+        new HashMap<>();
 
 }

@@ -27,6 +27,7 @@ import static org.osgi.service.jaxrs.whiteboard.JaxrsWhiteboardConstants.JAX_RS_
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -207,11 +208,11 @@ public class AriesJaxrsServiceRuntime implements JaxrsServiceRuntime {
     }
 
     public void addDependentExtensionInApplication(
-        CachingServiceReference applicationReference,
+        Map<String, ?> applicationReference,
         CachingServiceReference<?> cachingServiceReference) {
 
         _dependentExtensions.compute(
-            getServiceName(applicationReference::getProperty),
+            getServiceName(applicationReference::get),
             merger(cachingServiceReference));
     }
 
@@ -584,11 +585,11 @@ public class AriesJaxrsServiceRuntime implements JaxrsServiceRuntime {
     }
 
     public void removeDependentExtensionFromApplication(
-        CachingServiceReference applicationReference,
+        Map<String, ?> properties,
         CachingServiceReference<?> cachingServiceReference) {
 
         _dependentExtensions.compute(
-            getServiceName(applicationReference::getProperty),
+            getServiceName(properties::get),
             remover(cachingServiceReference));
     }
 
@@ -821,7 +822,7 @@ public class AriesJaxrsServiceRuntime implements JaxrsServiceRuntime {
 
         return (__, collection) -> {
             if (collection == null) {
-                collection = new HashSet<>();
+                collection = Collections.newSetFromMap(new ConcurrentHashMap<>());
             }
 
             collection.add(t);
