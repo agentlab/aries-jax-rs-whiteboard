@@ -28,7 +28,7 @@
         <relativePath />
     </parent>
 
-    <groupId>ru.agentlab.org.apache.aries.jax.rs</groupId>
+    <groupId>org.apache.aries.jax.rs.without.cxf</groupId>
     <artifactId>org.apache.aries.jax.rs</artifactId>
     <name>JAX-RS Integration Project</name>
     <version>1.0.5</version>
@@ -61,11 +61,11 @@
 			<distributionManagement>
 				<repository>
 					<id>agentlab</id>
-					<url>https://agentlab.ru/nexus/repository/maven-releases</url>
+					<url>https://nexus.agentlab.ru/nexus/repository/maven-releases</url>
 				</repository>
 				<snapshotRepository>
 					<id>agentlab</id>
-					<url>https://agentlab.ru/nexus/repository/maven-snapshots</url>
+					<url>https://nexus.agentlab.ru/nexus/repository/maven-snapshots</url>
 				</snapshotRepository>
 			</distributionManagement>
 			<build>
